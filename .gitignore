@@ -1,0 +1,30 @@
+# 输出目录
+output/
+*.mp4
+*.mp3
+*.png
+*.jpg
+
+# 模型
+models/
+*.gguf
+*.safetensors
+*.pth
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 临时文件
+*.tmp
+*.log
+/tmp/
