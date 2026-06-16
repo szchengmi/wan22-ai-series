@@ -350,10 +350,13 @@ def step6_compose(storyboard, script_data=None):
 def main():
     parser = argparse.ArgumentParser(description="wan22-ai-series AI短剧生成")
     parser.add_argument("--force", action="store_true", help="清除所有输出重新生成")
-    parser.add_argument("--episode", type=int, default=EPISODE_NUM, help="集数")
+    parser.add_argument("--episode", type=int, default=None, help="集数")
     args = parser.parse_args()
 
-    if args.episode != EPISODE_NUM:
+    # 设置全局变量
+    import common
+    if args.episode is not None:
+        common.EPISODE_NUM = args.episode
         global EPISODE_NUM
         EPISODE_NUM = args.episode
 
