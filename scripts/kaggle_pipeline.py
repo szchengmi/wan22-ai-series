@@ -85,23 +85,23 @@ def find_models():
     """查找模型文件（Dataset 挂载 或 本地目录）"""
     search_paths = []
 
-    # Kaggle Dataset 挂载点
+    # Kaggle Dataset 挂载点（旧仓库 kaggle-ai-series 的模型）
     for dataset_dir in ["/kaggle/input/datasets/saysnkaggle/newdataset",
                         "/kaggle/input/newdataset"]:
         if os.path.isdir(dataset_dir):
+            # 兼容旧路径
             search_paths.append(f"{dataset_dir}/kaggle-ai-series/models")
             search_paths.append(f"{dataset_dir}/models")
 
-    # 本地目录
+    # 本地目录（新仓库）
     search_paths.extend([
-        MODEL_CACHE_DIR,
-        "/kaggle/working/models",
+        MODEL_CACHE_DIR,  # /kaggle/working/wan22-ai-series/models
         "/kaggle/working/wan22-ai-series/models",
+        "/kaggle/working/models",
         f"{SCRIPT_DIR}/../models",
     ])
 
     model_dirs = {
-        "sd": None,
         "wan22_unet": None,
         "wan22_clip": None,
         "wan22_vae": None,
@@ -111,13 +111,6 @@ def find_models():
     for base in search_paths:
         if not os.path.isdir(base):
             continue
-
-        # SD 1.5
-        for name in ["stable-diffusion-v1-5", "runwayml--stable-diffusion-v1-5"]:
-            sd_path = f"{base}/{name}"
-            if os.path.isdir(sd_path) and os.path.isfile(f"{sd_path}/v1-5-pruned-emaonly.safetensors"):
-                model_dirs["sd"] = sd_path
-                break
 
         # Wan22 UNET GGUF
         for name in ["Wan2.2-TI2V-5B-Q4_K_M.gguf", "Wan2.2-TI2V-5B-Q3_K_S.gguf",
@@ -285,7 +278,7 @@ def _parse_script_response(text):
 # ============================================================
 
 def step2_generate_storyboard(script_data, force=False):
-    """将剧本转换为 SD 分镜"""
+    """将剧本转换为视频分镜（含 Wan2.2 视频 prompt）"""
     dirs = get_dirs(EPISODE_NUM)
     out_path = f"{dirs['storyboard']}/episode_{EPISODE_NUM:02d}_storyboard.json"
 
@@ -299,48 +292,37 @@ def step2_generate_storyboard(script_data, force=False):
 
 
 # ============================================================
-# Step 3: 画面生成 (SD 1.5)
+# Step 3: 视频生成 (Wan2.2 T2V via ComfyUI API)
 # ============================================================
 
-def step3_generate_images(storyboard, force=False):
-    """用 SD 1.5 生成图片"""
+def step3_generate_videos(storyboard, force=False):
+    """通过 ComfyUI API 调用 Wan2.2 文本生成视频"""
     dirs = get_dirs(EPISODE_NUM)
     total = sum(len(s.get("shots", [])) for s in storyboard.get("scenes", []))
+    log(f"  镜头数: {total}")
 
-    from step3_generate_images import main as step3_main
-    step3_main(storyboard)
-
-
-# ============================================================
-# Step 4: 视频生成 (Wan2.2 via ComfyUI API)
-# ============================================================
-
-def step4_generate_videos(storyboard, force=False):
-    """通过 ComfyUI API 调用 Wan2.2 生成视频"""
-    dirs = get_dirs(EPISODE_NUM)
-
-    from step4_generate_videos_wan22 import main as step4_main
-    step4_main(storyboard)
+    from step4_generate_videos_wan22 import main as wan22_main
+    wan22_main(storyboard)
 
 
 # ============================================================
-# Step 5: 配音生成
+# Step 4: 配音生成
 # ============================================================
 
-def step5_generate_audio(storyboard, force=False):
+def step4_generate_audio(storyboard, force=False):
     """生成配音"""
-    from step5_generate_audio import main as step5_main
-    step5_main(storyboard)
+    from step5_generate_audio import main as tts_main
+    tts_main(storyboard)
 
 
 # ============================================================
-# Step 6: 剪辑合成
+# Step 5: 剪辑合成
 # ============================================================
 
-def step6_compose(storyboard, script_data=None):
+def step5_compose(storyboard, script_data=None):
     """最终合成"""
-    from step6_compose import main as step6_main
-    step6_main(storyboard, script_data)
+    from step6_compose import main as compose_main
+    return compose_main(storyboard, script_data)
 
 
 # ============================================================
@@ -381,13 +363,11 @@ def main():
             log(f"  ✗ {name}: 未找到")
 
     # 关键模型检查
-    if not models["sd"]:
-        log("❌ SD 1.5 模型未找到! 请运行: python download_models.py")
+    if not models["wan22_unet"] or not models["wan22_vae"]:
+        log("❌ Wan2.2 模型未找到! 请运行: python download_models.py --models wan22")
         return
-    if not models["wan22_unet"]:
-        log("⚠️ Wan2.2 UNET 未找到，视频生成将不可用")
-    if not models["wan22_vae"]:
-        log("⚠️ Wan2.2 VAE 未找到，视频生成将不可用")
+    if not models["wan22_clip"]:
+        log("⚠️ Wan2.2 T5 CLIP 未找到，视频质量可能受影响")
 
     # 清除旧输出
     if args.force:
@@ -418,31 +398,24 @@ def main():
     log(f"  耗时: {time.time() - t:.1f}s")
 
     log("\n" + "=" * 50)
-    log("Step 3: 画面生成 (SD 1.5)")
+    log("Step 3: 视频生成 (Wan2.2 T2V)")
     log("=" * 50)
     t = time.time()
-    step3_generate_images(storyboard, force=args.force)
+    step3_generate_videos(storyboard, force=args.force)
     log(f"  耗时: {time.time() - t:.1f}s")
 
     log("\n" + "=" * 50)
-    log("Step 4: 视频生成 (Wan2.2)")
+    log("Step 4: 配音生成")
     log("=" * 50)
     t = time.time()
-    step4_generate_videos(storyboard, force=args.force)
+    step4_generate_audio(storyboard, force=args.force)
     log(f"  耗时: {time.time() - t:.1f}s")
 
     log("\n" + "=" * 50)
-    log("Step 5: 配音生成")
+    log("Step 5: 剪辑合成")
     log("=" * 50)
     t = time.time()
-    step5_generate_audio(storyboard, force=args.force)
-    log(f"  耗时: {time.time() - t:.1f}s")
-
-    log("\n" + "=" * 50)
-    log("Step 6: 剪辑合成")
-    log("=" * 50)
-    t = time.time()
-    final_path = step6_compose(storyboard, script_data)
+    final_path = step5_compose(storyboard, script_data)
     log(f"  耗时: {time.time() - t:.1f}s")
 
     # 总结

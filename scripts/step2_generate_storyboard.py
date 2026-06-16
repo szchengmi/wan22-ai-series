@@ -50,7 +50,7 @@ def main():
                 characters_used.add(char)
             params = SHOT_PARAMS.get(shot_type, SHOT_PARAMS["medium_shot"])
 
-            # 构建 SD prompt
+            # 构建视频 prompt（Wan2.2 T2V）
             pp = [params["prefix"]]
             if char != "none" and char in CHARACTER_PROMPTS:
                 pp.append(CHARACTER_PROMPTS[char]["base_prompt"])
@@ -62,9 +62,9 @@ def main():
                 pp.append(sp)
             pp.append(f"{scene['time_of_day']}, {scene['lighting']}")
             pp.append(shot.get("description", ""))
-            pp.append("masterpiece, best quality, detailed, anime style")
+            pp.append("smooth motion, cinematic, high quality, detailed anime style")
 
-            neg = "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, cropped, worst quality, low quality, jpeg artifacts, blurry"
+            neg = "blurry, distorted, low quality, static, motionless, bad anatomy, bad hands, text, error, missing fingers, extra digit, cropped, worst quality, jpeg artifacts"
             if char != "none" and char in CHARACTER_PROMPTS:
                 neg += ", " + CHARACTER_PROMPTS[char]["negative_prompt"]
 
