@@ -76,7 +76,7 @@ def download_with_hf(repo_id, filename, dest_dir, token=None):
     """从 HuggingFace 下载（通过 hf-mirror.com）"""
     from huggingface_hub import hf_hub_download
 
-    # 目标路径：保持原始文件名（不替换 /）
+    # 目标路径：保持原始文件名
     dest = os.path.join(dest_dir, os.path.basename(filename))
 
     if os.path.exists(dest) and os.path.getsize(dest) > 100_000_000:
@@ -89,13 +89,17 @@ def download_with_hf(repo_id, filename, dest_dir, token=None):
     # 使用 hf-mirror.com
     os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
-    path = hf_hub_download(
+    # 公开模型不需要 token，避免 Bearer 空值错误
+    kwargs = dict(
         repo_id=repo_id,
         filename=filename,
         local_dir=dest_dir,
         local_dir_use_symlinks=False,
-        token=token,
     )
+    if token:
+        kwargs["token"] = token
+
+    path = hf_hub_download(**kwargs)
     size_mb = os.path.getsize(dest) / 1e6
     log(f"  ✅ {os.path.basename(filename)} ({size_mb:.0f}MB)")
     return path
