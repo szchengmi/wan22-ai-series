@@ -120,10 +120,10 @@ def download_wan22():
         token=_get_hf_token(),
     )
 
-    # 2. T5 Text Encoder GGUF (Q4_K_M ~3.6GB)
+    # 2. T5 Text Encoder GGUF (Q4_K_M ~3.6GB) - 直接下载
     download_with_hf(
         "city96/umt5-xxl-encoder-gguf",
-        "Q4_K_M/umt5-xxl-encoder-Q4_K_M.gguf",
+        "umt5-xxl-encoder-Q4_K_M.gguf",
         DOWNLOAD_DIR,
         token=_get_hf_token(),
     )
