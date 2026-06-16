@@ -109,10 +109,10 @@ def download_wan22():
     """下载 Wan2.2-TI2V-5B GGUF 模型"""
     log("下载 Wan2.2-TI2V-5B GGUF...")
 
-    # 1. UNET GGUF (Q4_K_M ~3.3GB)
+    # 1. UNET GGUF (Q4_K_M ~3.3GB) - 直接下载
     download_with_hf(
         "QuantStack/Wan2.2-TI2V-5B-GGUF",
-        "Q4_K_M/Wan2.2-TI2V-5B-Q4_K_M.gguf",
+        "Wan2.2-TI2V-5B-Q4_K_M.gguf",
         DOWNLOAD_DIR,
         token=_get_hf_token(),
     )
