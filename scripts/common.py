@@ -20,14 +20,27 @@ SHOTS_PER_SCENE = int(os.environ.get("SHOTS_PER_SCENE", "3"))
 IMAGE_STEPS = int(os.environ.get("IMAGE_STEPS", "20"))
 IMAGE_GUIDANCE = float(os.environ.get("IMAGE_GUIDANCE", "7.5"))
 
-# HuggingFace
-HF_TOKEN = os.environ.get("HF_TOKEN", "")
-if not HF_TOKEN:
-    try:
-        from kaggle_secrets import UserSecretsClient
-        HF_TOKEN = UserSecretsClient().get_secret("secret_value_1")
-    except:
-        pass
+# HuggingFace — 每次使用时动态读取，避免模块加载时 Kaggle 未初始化
+def _get_hf_token():
+    """动态获取 HF Token，优先环境变量 → Kaggle Secrets"""
+    token = os.environ.get("HF_TOKEN", "")
+    if not token:
+        try:
+            from kaggle_secrets import UserSecretsClient
+            # 支持两种 key 名
+            for key in ["HF_TOKEN", "secret_value_1"]:
+                try:
+                    token = UserSecretsClient().get_secret(key)
+                    if token:
+                        break
+                except:
+                    continue
+        except:
+            pass
+    return token
+
+# 模块级保留，但 download 时会动态刷新
+HF_TOKEN = _get_hf_token()
 
 # Google API
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")

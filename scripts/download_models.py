@@ -19,7 +19,7 @@ import shutil
 import argparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import log, HF_TOKEN, MODEL_CACHE_DIR
+from common import log, _get_hf_token, MODEL_CACHE_DIR
 
 # 下载目标目录
 DOWNLOAD_DIR = os.environ.get("MODEL_CACHE_DIR", MODEL_CACHE_DIR)
@@ -109,12 +109,12 @@ def download_wan22():
     """下载 Wan2.2-TI2V-5B GGUF 模型"""
     log("下载 Wan2.2-TI2V-5B GGUF...")
 
-    # 1. UNET GGUF (Q4_K_M ~5.1GB)
+    # 1. UNET GGUF (Q4_K_M ~3.3GB)
     download_with_hf(
         "QuantStack/Wan2.2-TI2V-5B-GGUF",
         "Q4_K_M/Wan2.2-TI2V-5B-Q4_K_M.gguf",
         DOWNLOAD_DIR,
-        token=HF_TOKEN,
+        token=_get_hf_token(),
     )
 
     # 2. T5 Text Encoder GGUF (Q4_K_M ~3.6GB)
@@ -122,7 +122,7 @@ def download_wan22():
         "city96/umt5-xxl-encoder-gguf",
         "Q4_K_M/umt5-xxl-encoder-Q4_K_M.gguf",
         DOWNLOAD_DIR,
-        token=HF_TOKEN,
+        token=_get_hf_token(),
     )
 
     # 3. VAE (GGUF 不含 VAE tensor，需要独立下载, ~1.3GB)
@@ -130,7 +130,7 @@ def download_wan22():
         "QuantStack/Wan2.2-TI2V-5B-GGUF",
         "VAE/Wan2.2_VAE.safetensors",
         DOWNLOAD_DIR,
-        token=HF_TOKEN,
+        token=_get_hf_token(),
     )
 
     log("  Wan2.2 模型下载完成")
@@ -155,7 +155,7 @@ def download_qwen():
         repo_id="Qwen/Qwen2.5-3B-Instruct",
         local_dir=dest,
         local_dir_use_symlinks=False,
-        token=HF_TOKEN,
+        token=_get_hf_token(),
     )
     log("  Qwen2.5-3B 下载完成")
     return dest
