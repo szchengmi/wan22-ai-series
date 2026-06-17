@@ -163,6 +163,12 @@ def find_models():
         "/kaggle/working/models",
         f"{SCRIPT_DIR}/../models",
     ])
+    log(f"  Qwen搜索路径 ({len(qw_bases)}个):")
+    for base in qw_bases:
+        exists = os.path.isdir(base)
+        has_qwen = os.path.isdir(f"{base}/Qwen2.5-3B-Instruct") if exists else False
+        has_index = os.path.isfile(f"{base}/model.safetensors.index.json") if exists else False
+        log(f"    {base} [dir={exists}, qwen_dir={has_qwen}, index={has_index}]")
     for base in qw_bases:
         # 方式1: Qwen2.5-3B-Instruct 子目录
         qw_path = f"{base}/Qwen2.5-3B-Instruct"
