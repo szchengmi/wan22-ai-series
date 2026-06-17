@@ -6,11 +6,10 @@ Kaggle Notebook 单文件执行版本。
 
 流程:
   Step 1: 剧本生成 (Gemini API / Qwen本地 / 预置)
-  Step 2: 分镜生成 (剧本→SD prompt)
-  Step 3: 画面生成 (SD 1.5)
-  Step 4: 视频生成 (Wan2.2-TI2V-5B GGUF via ComfyUI API)
-  Step 5: 配音生成 (ChatTTS / edge-tts)
-  Step 6: 剪辑合成 (FFmpeg + MoviePy)
+  Step 2: 分镜生成 (剧本→视频 prompt)
+  Step 3: 视频生成 (Wan2.2-TI2V-5B GGUF via ComfyUI API)
+  Step 4: 配音生成 (ChatTTS / edge-tts)
+  Step 5: 剪辑合成 (FFmpeg + MoviePy)
 
 用法:
   python kaggle_pipeline.py          # 正常运行
@@ -20,6 +19,7 @@ Kaggle Notebook 单文件执行版本。
 import os
 import sys
 import json
+import re
 import time
 import argparse
 import shutil
@@ -270,7 +270,23 @@ def _parse_script_response(text):
     if text.startswith("```"):
         lines = text.split("\n")
         text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:]).strip()
-    return json.loads(text)
+    # 修复常见 JSON 问题：非法控制字符、尾随逗号
+    text = text.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+    text = re.sub(r',\s*}', '}', text)
+    text = re.sub(r',\s*]', ']', text)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        # 尝试提取第一个完整 JSON 对象
+        depth = 0
+        for i, c in enumerate(text):
+            if c == '{':
+                depth += 1
+            elif c == '}':
+                depth -= 1
+                if depth == 0:
+                    return json.loads(text[:i+1])
+        raise
 
 
 # ============================================================
