@@ -85,13 +85,14 @@ def find_models():
     """查找模型文件（Dataset 挂载 或 本地目录）"""
     search_paths = []
 
-    # Kaggle Dataset 挂载点（旧仓库 kaggle-ai-series 的模型）
-    for dataset_dir in ["/kaggle/input/datasets/saysnkaggle/newdataset",
+    # Kaggle Dataset 挂载点
+    for dataset_dir in ["/kaggle/input/datasets/saysnkaggle/wan2-2-5b-q4-gguf",
+                        "/kaggle/input/datasets/saysnkaggle/newdataset",
                         "/kaggle/input/newdataset"]:
         if os.path.isdir(dataset_dir):
-            # 兼容旧路径
-            search_paths.append(f"{dataset_dir}/kaggle-ai-series/models")
+            search_paths.append(f"{dataset_dir}/model")
             search_paths.append(f"{dataset_dir}/models")
+            search_paths.append(f"{dataset_dir}/kaggle-ai-series/models")
 
     # 本地目录（新仓库）
     search_paths.extend([

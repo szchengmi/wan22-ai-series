@@ -324,6 +324,42 @@ def _build_wan22_workflow(positive_prompt, negative_prompt, model_path,
 # 主函数
 # ============================================================
 
+def _find_wan22_models():
+    """查找 Wan2.2 模型文件（Dataset 挂载 或 本地目录）"""
+    search_paths = []
+    for dataset_dir in ["/kaggle/input/datasets/saysnkaggle/wan2-2-5b-q4-gguf",
+                        "/kaggle/input/datasets/saysnkaggle/newdataset",
+                        "/kaggle/input/newdataset"]:
+        if os.path.isdir(dataset_dir):
+            search_paths.append(f"{dataset_dir}/model")
+            search_paths.append(f"{dataset_dir}/models")
+    search_paths.extend([
+        "/kaggle/working/wan22-ai-series/models",
+        "/kaggle/working/models",
+    ])
+
+    result = {"unet": None, "clip": None, "vae": None}
+    for base in search_paths:
+        if not os.path.isdir(base):
+            continue
+        if not result["unet"]:
+            for name in ["Wan2.2-TI2V-5B-Q4_K_M.gguf", "Wan2.2-TI2V-5B.gguf"]:
+                if os.path.isfile(f"{base}/{name}"):
+                    result["unet"] = f"{base}/{name}"
+                    break
+        if not result["clip"]:
+            for name in ["umt5-xxl-encoder-Q4_K_M.gguf", "umt5-xxl-encoder.gguf"]:
+                if os.path.isfile(f"{base}/{name}"):
+                    result["clip"] = f"{base}/{name}"
+                    break
+        if not result["vae"]:
+            for name in ["Wan2.2_VAE.safetensors", "Wan2.2_VAE.pth"]:
+                if os.path.isfile(f"{base}/{name}"):
+                    result["vae"] = f"{base}/{name}"
+                    break
+    return result
+
+
 def main(storyboard=None):
     log("=" * 50)
     log("Step 4: 视频生成 (Wan2.2-TI2V-5B)")
@@ -332,19 +368,19 @@ def main(storyboard=None):
     dirs = get_dirs(EPISODE_NUM)
     total = sum(len(s.get("shots", [])) for s in storyboard.get("scenes", []))
 
-    # 模型路径
-    model_path = f"{dirs['models']}/Wan2.2-TI2V-5B-Q4_K_M.gguf"
-    clip_path = f"{dirs['models']}/umt5-xxl-encoder-Q4_K_M.gguf"
-    vae_path = f"{dirs['models']}/Wan2.2_VAE.safetensors"
+    # 模型路径（支持 Dataset 挂载）
+    models = _find_wan22_models()
+    model_path = models["unet"]
+    clip_path = models["clip"]
+    vae_path = models["vae"]
 
     # 检查模型
     for name, path in [("UNET", model_path), ("CLIP", clip_path), ("VAE", vae_path)]:
-        if not os.path.isfile(path):
-            log(f"  ❌ {name} 模型不存在: {path}")
-            log(f"  请运行: python download_models.py")
+        if not path:
+            log(f"  ❌ {name} 模型未找到")
             return
         size_mb = os.path.getsize(path) / 1e6
-        log(f"  ✅ {name}: {size_mb:.0f}MB")
+        log(f"  ✅ {name}: {os.path.basename(path)} ({size_mb:.0f}MB)")
 
     # 启动 ComfyUI
     if not _start_comfyui():
