@@ -318,19 +318,29 @@ def _generate_with_local_llm(prompt):
     inputs = tokenizer(input_text, return_tensors="pt").to(model.device)
 
     log(f"  输入 token 数: {inputs.input_ids.shape[1]}")
-    log(f"  开始生成 (max_new_tokens=64, greedy)...")
+    log(f"  开始生成 (max_new_tokens=512, greedy)...")
     with torch.no_grad():
         outputs = model.generate(
-            **inputs, max_new_tokens=64, do_sample=False,
+            **inputs, max_new_tokens=512, do_sample=False,
             pad_token_id=tokenizer.eos_token_id,
         )
     log(f"  生成完成, 输出 token 数: {outputs[0].shape[0]}")
 
     generated = outputs[0][inputs.input_ids.shape[1]:]
-    return tokenizer.decode(generated, skip_special_tokens=True)
+    raw_text = tokenizer.decode(generated, skip_special_tokens=True)
 
+    # 保存原始输出到 /kaggle/working/ai-series/
+    raw_dir = "/kaggle/working/ai-series"
+    os.makedirs(raw_dir, exist_ok=True)
+    raw_path = f"{raw_dir}/qwen_raw_output.txt"
+    with open(raw_path, "w", encoding="utf-8") as f:
+        f.write(raw_text)
+    log(f"  原始输出已保存: {raw_path} ({len(raw_text)} 字符)")
+
+    return raw_text
 
 def _parse_script_response(text):
+    """解析LLM返回的JSON剧本"""
     text = text.strip()
     if text.startswith("```"):
         lines = text.split("\n")
@@ -342,9 +352,9 @@ def _parse_script_response(text):
     try:
         return json.loads(text)
     except json.JSONDecodeError as e:
-        # 调试：输出前200字符
+        # 调试：输出前500字符
         log(f"  ⚠️ JSON 解析失败: {e}")
-        log(f"  输出前200字符: {text[:200]!r}")
+        log(f"  输出前500字符: {text[:500]!r}")
         # 尝试提取第一个完整 JSON 对象
         depth = 0
         start = -1
@@ -356,7 +366,12 @@ def _parse_script_response(text):
             elif c == '}':
                 depth -= 1
                 if depth == 0 and start >= 0:
-                    return json.loads(text[start:i+1])
+                    try:
+                        result = json.loads(text[start:i+1])
+                        log(f"  ✅ 截取 JSON 成功 (pos {start}-{i})")
+                        return result
+                    except:
+                        continue
         # 尝试用 yaml 解析（更宽松）
         try:
             import yaml
@@ -366,6 +381,11 @@ def _parse_script_response(text):
                 return result
         except:
             pass
+        # 最终降级：保存错误文本，抛出
+        err_path = "/kaggle/working/ai-series/qwen_parse_error.txt"
+        with open(err_path, "w", encoding="utf-8") as f:
+            f.write(text)
+        log(f"  完整输出已保存到: {err_path}")
         raise
 
 
