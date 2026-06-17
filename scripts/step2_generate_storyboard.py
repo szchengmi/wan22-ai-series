@@ -93,7 +93,21 @@ def main(script_data=None):
         storyboard["scenes"].append(scene_data)
 
     for cid in characters_used:
-        storyboard["characters"][cid] = CHARACTER_PROMPTS[cid]
+        if cid in CHARACTER_PROMPTS:
+            storyboard["characters"][cid] = CHARACTER_PROMPTS[cid]
+        else:
+            # 尝试拆分多角色（如 "xiaoming xiaoli"）
+            parts = cid.split()
+            for p in parts:
+                if p in CHARACTER_PROMPTS:
+                    storyboard["characters"][p] = CHARACTER_PROMPTS[p]
+            # 如果都找不到，用默认
+            if cid not in storyboard["characters"]:
+                storyboard["characters"][cid] = {
+                    "base_prompt": "young chinese person, anime style",
+                    "negative_prompt": "bad anatomy",
+                    "seed": 42,
+                }
 
     save_json(storyboard, f"{dirs['storyboard']}/episode_{EPISODE_NUM:02d}_storyboard.json")
     total = sum(len(s.get("shots", [])) for s in storyboard.get("scenes", []))
