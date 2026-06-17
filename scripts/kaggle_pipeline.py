@@ -276,16 +276,31 @@ def _parse_script_response(text):
     text = re.sub(r',\s*]', ']', text)
     try:
         return json.loads(text)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        # 调试：输出前200字符
+        log(f"  ⚠️ JSON 解析失败: {e}")
+        log(f"  输出前200字符: {text[:200]!r}")
         # 尝试提取第一个完整 JSON 对象
         depth = 0
+        start = -1
         for i, c in enumerate(text):
             if c == '{':
+                if depth == 0:
+                    start = i
                 depth += 1
             elif c == '}':
                 depth -= 1
-                if depth == 0:
-                    return json.loads(text[:i+1])
+                if depth == 0 and start >= 0:
+                    return json.loads(text[start:i+1])
+        # 尝试用 yaml 解析（更宽松）
+        try:
+            import yaml
+            result = yaml.safe_load(text)
+            if isinstance(result, dict):
+                log(f"  ✅ YAML 解析成功")
+                return result
+        except:
+            pass
         raise
 
 
