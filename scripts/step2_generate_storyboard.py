@@ -16,14 +16,16 @@ from common import (
 )
 
 
-def main():
+def main(script_data=None):
     log("=" * 50)
     log("Step 2: 分镜生成")
     log("=" * 50)
 
     dirs = get_dirs(EPISODE_NUM)
-    script_path = f"{dirs['storyboard']}/episode_{EPISODE_NUM:02d}_script.json"
-    script_data = load_json(script_path)
+
+    if script_data is None:
+        script_path = f"{dirs['storyboard']}/episode_{EPISODE_NUM:02d}_script.json"
+        script_data = load_json(script_path)
 
     storyboard = {
         "episode": script_data.get("episode", 1),
