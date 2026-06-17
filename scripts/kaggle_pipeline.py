@@ -65,6 +65,19 @@ def detect_environment():
         if env["has_gpu"]:
             env["gpu_name"] = torch.cuda.get_device_name(0)
             env["gpu_mem_gb"] = torch.cuda.get_device_properties(0).total_mem / 1e9
+        else:
+            # fallback: 检查 nvidia-smi
+            import subprocess
+            result = subprocess.run("nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null",
+                                    shell=True, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0 and result.stdout.strip():
+                parts = result.stdout.strip().split(", ")
+                env["has_gpu"] = True
+                env["gpu_name"] = parts[0] if len(parts) > 0 else "unknown"
+                try:
+                    env["gpu_mem_gb"] = int(parts[1]) / 1024 if len(parts) > 1 else 0
+                except:
+                    pass
     except:
         pass
 
@@ -133,10 +146,28 @@ def find_models():
                 model_dirs["wan22_vae"] = f"{base}/{name}"
                 break
 
-        # Qwen2.5-3B
+    # Qwen2.5-3B (多种可能位置)
+    qw_bases = []
+    for dataset_dir in ["/kaggle/input/datasets/saysnkaggle/wan2-2-5b-q4-gguf",
+                        "/kaggle/input/datasets/saysnkaggle/newdataset",
+                        "/kaggle/input/newdataset"]:
+        if os.path.isdir(dataset_dir):
+            qw_bases.extend([
+                f"{dataset_dir}/model",
+                f"{dataset_dir}/models",
+                dataset_dir,
+            ])
+    qw_bases.extend([
+        MODEL_CACHE_DIR,
+        "/kaggle/working/wan22-ai-series/models",
+        "/kaggle/working/models",
+        f"{SCRIPT_DIR}/../models",
+    ])
+    for base in qw_bases:
         qw_path = f"{base}/Qwen2.5-3B-Instruct"
         if os.path.isdir(qw_path) and os.path.isfile(f"{qw_path}/config.json"):
             model_dirs["qwen"] = qw_path
+            break
 
     return model_dirs
 
