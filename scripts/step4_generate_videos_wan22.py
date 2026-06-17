@@ -55,7 +55,25 @@ def _find_comfyui():
 
 def _install_comfyui():
     """安装 ComfyUI + GGUF 插件"""
-    log("安装 ComfyUI...")
+    # 先检查是否已安装
+    existing = _find_comfyui()
+    if existing:
+        log(f"ComfyUI 已存在: {existing}")
+        # 确保 GGUF 插件存在
+        gguf_dir = f"{existing}/custom_nodes/ComfyUI-GGUF"
+        if os.path.isdir(gguf_dir):
+            log("  GGUF 插件已存在")
+            return
+        log("  GGUF 插件缺失，仅安装插件...")
+        os.chdir(existing)
+        run_cmd("curl -sL https://github.com/city96/ComfyUI-GGUF/archive/refs/heads/main.zip -o /tmp/gguf.zip")
+        run_cmd("unzip -qo /tmp/gguf.zip -d custom_nodes/")
+        run_cmd("mv custom_nodes/ComfyUI-GGUF-main custom_nodes/ComfyUI-GGUF 2>/dev/null; true")
+        run_cmd("rm -f /tmp/gguf.zip")
+        log("  GGUF 插件安装完成")
+        return
+
+    log("安装 ComfyUI (首次，需要下载)...")
     parent = os.path.dirname(COMFYUI_DIR)
     os.chdir(parent)
     run_cmd("curl -sL https://github.com/comfyanonymous/ComfyUI/archive/refs/heads/master.zip -o /tmp/comfyui.zip")
@@ -75,6 +93,7 @@ def _install_comfyui():
 
 def _start_comfyui():
     """启动 ComfyUI 服务器（后台）"""
+    # 已在运行？
     try:
         urllib.request.urlopen(f"{COMFYUI_URL}/system_stats", timeout=2)
         log("ComfyUI 已在运行")
@@ -88,24 +107,29 @@ def _start_comfyui():
         cwd = COMFYUI_DIR
 
     log("启动 ComfyUI...")
-    log("  (这可能需要几分钟...)")
+    # 用 GPU 模式启动
+    env = os.environ.copy()
+    env["CUDA_VISIBLE_DEVICES"] = "0"
     proc = subprocess.Popen(
         ["python", "main.py", "--dont-print-server", "--highvram",
-         "--preview-method", "none", "--port", "8188"],
+         "--preview-method", "none", "--port", "8188",
+         "--cuda-device", "0"],
         cwd=cwd,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        env=env,
     )
 
-    for i in range(120):  # 最多等 600 秒
-        time.sleep(5)
+    # 快速轮询（3s 间隔），最多 5 分钟
+    for i in range(100):
+        time.sleep(3)
         try:
             urllib.request.urlopen(f"{COMFYUI_URL}/system_stats", timeout=2)
-            log(f"  ComfyUI 就绪 ({(i + 1) * 5}s)")
+            log(f"  ComfyUI 就绪 ({(i + 1) * 3}s)")
             return True
         except:
-            if i % 6 == 0:
-                log(f"  ⏳ 等待... ({(i + 1) * 5}s)")
+            if i < 5 or i % 10 == 0:
+                log(f"  ⏳ 等待... ({(i + 1) * 3}s)")
     return False
 
 
