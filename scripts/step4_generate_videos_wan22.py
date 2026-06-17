@@ -75,77 +75,53 @@ def _find_comfyui():
 
 
 def _install_comfyui():
-    """安装 ComfyUI + GGUF 插件"""
-    log("安装 ComfyUI...")
-    try:
-        result = run_cmd("pip install git+https://github.com/comfyanonymous/ComfyUI.git 2>&1 | tail -5", timeout=300)
-        if result.returncode != 0:
-            log(f"  pip install 失败: {result.stdout[-200:]} {result.stderr[-200:]}")
-            raise RuntimeError("pip install failed")
-        run_cmd("pip install -q gguf accelerate 2>&1 | tail -3", timeout=120)
-        _install_gguf_plugin()
-        log("ComfyUI 安装完成(pip)")
-    except Exception as e:
-        log(f"  pip 方式失败: {e}")
-        log("  尝试 zip 方式...")
-        _install_comfyui_zip()
+    """安装 ComfyUI + GGUF 插件 (git clone 方式)"""
+    # 清理旧进程
+    run_cmd("pkill -f 'main.py' 2>/dev/null; true")
 
+    if os.path.isdir(COMFYUI_DIR) and os.path.isfile(f"{COMFYUI_DIR}/main.py"):
+        log(f"ComfyUI 目录存在: {COMFYUI_DIR}")
+        # 检查依赖是否完整
+        result = run_cmd("python -c 'import torch; import comfy; print(\"ok\")' 2>&1", timeout=30)
+        if result.returncode == 0 and "ok" in result.stdout:
+            log("  ComfyUI 依赖完整，跳过安装")
+            _install_gguf_plugin()
+            return
+        log("  依赖不完整，重新安装...")
 
-def _install_comfyui_zip():
-    """安装 ComfyUI (zip 备用方式)"""
-    parent = os.path.dirname(COMFYUI_DIR)
-    os.chdir(parent)
-    run_cmd("curl -sL https://github.com/comfyanonymous/ComfyUI/archive/refs/heads/master.zip -o /tmp/comfyui.zip")
-    run_cmd("unzip -qo /tmp/comfyui.zip -d /kaggle/working/")
-    run_cmd("rm -f /tmp/comfyui.zip")
-    if os.path.isdir("/kaggle/working/ComfyUI-master"):
-        os.rename("/kaggle/working/ComfyUI-master", "/kaggle/working/ComfyUI")
-    run_cmd("pip install -q -r requirements.txt", timeout=300)
-    run_cmd("pip install -q gguf accelerate", timeout=120)
+    log("安装 ComfyUI (git clone)...")
+    # 删除旧目录
+    if os.path.isdir(COMFYUI_DIR):
+        shutil.rmtree(COMFYUI_DIR, ignore_errors=True)
+
+    # git clone ComfyUI
+    run_cmd(f"git clone https://github.com/comfyanonymous/ComfyUI.git {COMFYUI_DIR}",
+            timeout=120)
+    os.chdir(COMFYUI_DIR)
+
+    # 安装依赖 (关键!)
+    run_cmd("pip install -r requirements.txt 2>&1 | tail -5", timeout=300)
+    run_cmd("pip install torchsde einops transformers safetensors aiohttp accelerate "
+            "pyyaml opencv-python pillow scipy imageio[ffmpeg] moviepy "
+            "huggingface_hub gguf pydantic-settings python-dotenv 2>&1 | tail -5",
+            timeout=300)
+
+    log("ComfyUI 安装完成")
+
     # GGUF 插件
-    run_cmd("curl -sL https://github.com/city96/ComfyUI-GGUF/archive/refs/heads/main.zip -o /tmp/gguf.zip")
-    run_cmd("unzip -qo /tmp/gguf.zip -d custom_nodes/")
-    run_cmd("mv custom_nodes/ComfyUI-GGUF-main custom_nodes/ComfyUI-GGUF 2>/dev/null; true")
-    run_cmd("rm -f /tmp/gguf.zip")
-    log("ComfyUI 安装完成(zip)")
+    _install_gguf_plugin()
 
 
 def _install_gguf_plugin():
     """安装 GGUF 插件到 ComfyUI 的 custom_nodes"""
-    # 找到 ComfyUI 的 custom_nodes 目录
-    try:
-        import importlib.util
-        spec = importlib.util.find_spec("comfy")
-        if spec and spec.origin:
-            # pip 安装: site-packages/comfy/ → 上级是 site-packages/
-            # custom_nodes 在同级的 ComfyUI/custom_nodes/
-            pkg_dir = os.path.dirname(spec.origin)
-            parent = os.path.dirname(pkg_dir)
-            cn_dir = os.path.join(parent, "ComfyUI", "custom_nodes")
-            if os.path.isdir(cn_dir):
-                os.chdir(cn_dir)
-                if os.path.isdir("ComfyUI-GGUF"):
-                    return
-                run_cmd("curl -sL https://github.com/city96/ComfyUI-GGUF/archive/refs/heads/main.zip -o /tmp/gguf.zip")
-                run_cmd("unzip -qo /tmp/gguf.zip -d .")
-                run_cmd("mv ComfyUI-GGUF-main ComfyUI-GGUF 2>/dev/null; true")
-                run_cmd("rm -f /tmp/gguf.zip")
-                log("  GGUF 插件安装完成")
-                return
-    except:
-        pass
-
-    # 目录安装
-    for base in ["/kaggle/working/ComfyUI"]:
-        cn_dir = f"{base}/custom_nodes"
-        if os.path.isdir(cn_dir) and not os.path.isdir(f"{cn_dir}/ComfyUI-GGUF"):
-            os.chdir(cn_dir)
-            run_cmd("curl -sL https://github.com/city96/ComfyUI-GGUF/archive/refs/heads/main.zip -o /tmp/gguf.zip")
-            run_cmd("unzip -qo /tmp/gguf.zip -d .")
-            run_cmd("mv ComfyUI-GGUF-main ComfyUI-GGUF 2>/dev/null; true")
-            run_cmd("rm -f /tmp/gguf.zip")
-            log("  GGUF 插件安装完成")
-            return
+    cn_dir = f"{COMFYUI_DIR}/custom_nodes"
+    if os.path.isdir(f"{cn_dir}/ComfyUI-GGUF"):
+        return
+    os.makedirs(cn_dir, exist_ok=True)
+    log("  安装 GGUF 插件...")
+    run_cmd(f"git clone https://github.com/city96/ComfyUI-GGUF.git {cn_dir}/ComfyUI-GGUF",
+            timeout=60)
+    log("  GGUF 插件安装完成")
 
 
 def _start_comfyui():
@@ -180,10 +156,9 @@ def _start_comfyui():
     env["CUDA_VISIBLE_DEVICES"] = "0"
 
     if install_type == "pip":
-        # pip 安装用 python -m 方式启动
         proc = subprocess.Popen(
             ["python", "-m", "comfy", "main", "--dont-print-server", "--highvram",
-             "--preview-method", "none", "--port", "8188"],
+             "--preview-method", "none", "--listen", "0.0.0.0", "--port", "8188"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             env=env,
@@ -191,7 +166,7 @@ def _start_comfyui():
     else:
         proc = subprocess.Popen(
             ["python", "main.py", "--dont-print-server", "--highvram",
-             "--preview-method", "none", "--port", "8188",
+             "--preview-method", "none", "--listen", "0.0.0.0", "--port", "8188",
              "--cuda-device", "0"],
             cwd=cwd,
             stdout=subprocess.DEVNULL,
