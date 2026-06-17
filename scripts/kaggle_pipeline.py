@@ -270,8 +270,8 @@ def _parse_script_response(text):
     if text.startswith("```"):
         lines = text.split("\n")
         text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:]).strip()
-    # 修复常见 JSON 问题：非法控制字符、尾随逗号
-    text = text.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+    # 修复常见 JSON 问题：模型可能返回字面 \n 作为换行
+    text = text.replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t")
     text = re.sub(r',\s*}', '}', text)
     text = re.sub(r',\s*]', ']', text)
     try:
