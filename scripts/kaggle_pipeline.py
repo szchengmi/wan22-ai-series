@@ -357,6 +357,36 @@ def step5_compose(storyboard, script_data=None):
 
 
 # ============================================================
+# 运行时依赖安装
+# ============================================================
+
+def _install_runtime_deps():
+    """安装运行时依赖（幂等，已安装则跳过）"""
+    deps = [
+        "edge-tts>=6.1.0",
+        "soundfile>=0.12.0",
+        "moviepy>=1.0.3",
+        "scipy>=1.10.0",
+        "psutil>=5.9.0",
+    ]
+    for dep in deps:
+        pkg = dep.split(">=")[0].split("==")[0]
+        try:
+            import importlib
+            importlib.import_module(pkg.replace("-", "_"))
+        except ImportError:
+            log(f"  安装 {dep}...")
+            run_cmd(f"pip install -q {dep}", timeout=120)
+
+    # 确保 ffmpeg
+    try:
+        subprocess.run(["ffmpeg", "-version"], capture_output=True, timeout=5)
+    except:
+        log("  安装 ffmpeg...")
+        run_cmd("apt-get update -qq && apt-get install -y -qq ffmpeg 2>/dev/null", timeout=120)
+
+
+# ============================================================
 # 主流程
 # ============================================================
 
@@ -399,6 +429,9 @@ def main():
         return
     if not models["wan22_clip"]:
         log("⚠️ Wan2.2 T5 CLIP 未找到，视频质量可能受影响")
+
+    # 安装运行时依赖
+    _install_runtime_deps()
 
     # 清除旧输出
     if args.force:

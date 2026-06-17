@@ -24,6 +24,7 @@ import os
 import sys
 import json
 import time
+import shutil
 import urllib.request
 import urllib.error
 import subprocess
@@ -46,34 +47,23 @@ COMFYUI_DIR = "/kaggle/working/ComfyUI"
 
 
 def _find_comfyui():
-    """查找 ComfyUI 目录"""
+    """查找 ComfyUI 目录（验证 main.py + 关键依赖存在）"""
     for candidate in ["/kaggle/working/ComfyUI", "/kaggle/working/ComfyUI-master"]:
         if os.path.isdir(candidate) and os.path.isfile(f"{candidate}/main.py"):
-            return candidate
+            # 检查 requirements 是否已安装（看 server.py 和 comfy 包）
+            comfy_pkg = os.path.join(candidate, "comfy")
+            server_py = os.path.join(candidate, "server.py")
+            if os.path.isdir(comfy_pkg) and os.path.isfile(server_py):
+                return candidate
+            # 目录存在但不完整，删掉重新安装
+            log(f"  ComfyUI 目录不完整，将重新安装")
+            shutil.rmtree(candidate, ignore_errors=True)
     return None
 
 
 def _install_comfyui():
-    """安装 ComfyUI + GGUF 插件"""
-    # 先检查是否已安装
-    existing = _find_comfyui()
-    if existing:
-        log(f"ComfyUI 已存在: {existing}")
-        # 确保 GGUF 插件存在
-        gguf_dir = f"{existing}/custom_nodes/ComfyUI-GGUF"
-        if os.path.isdir(gguf_dir):
-            log("  GGUF 插件已存在")
-            return
-        log("  GGUF 插件缺失，仅安装插件...")
-        os.chdir(existing)
-        run_cmd("curl -sL https://github.com/city96/ComfyUI-GGUF/archive/refs/heads/main.zip -o /tmp/gguf.zip")
-        run_cmd("unzip -qo /tmp/gguf.zip -d custom_nodes/")
-        run_cmd("mv custom_nodes/ComfyUI-GGUF-main custom_nodes/ComfyUI-GGUF 2>/dev/null; true")
-        run_cmd("rm -f /tmp/gguf.zip")
-        log("  GGUF 插件安装完成")
-        return
-
-    log("安装 ComfyUI (首次，需要下载)...")
+    """安装 ComfyUI + GGUF 插件 (zip 方式)"""
+    log("安装 ComfyUI...")
     parent = os.path.dirname(COMFYUI_DIR)
     os.chdir(parent)
     run_cmd("curl -sL https://github.com/comfyanonymous/ComfyUI/archive/refs/heads/master.zip -o /tmp/comfyui.zip")
@@ -101,13 +91,13 @@ def _start_comfyui():
     except:
         pass
 
+    # 查找或安装
     cwd = _find_comfyui()
     if not cwd:
         _install_comfyui()
         cwd = COMFYUI_DIR
 
     log("启动 ComfyUI...")
-    # 用 GPU 模式启动
     env = os.environ.copy()
     env["CUDA_VISIBLE_DEVICES"] = "0"
     proc = subprocess.Popen(
@@ -120,15 +110,15 @@ def _start_comfyui():
         env=env,
     )
 
-    # 快速轮询（3s 间隔），最多 5 分钟
-    for i in range(100):
+    # 快速轮询（3s 间隔），最多 10 分钟
+    for i in range(200):
         time.sleep(3)
         try:
             urllib.request.urlopen(f"{COMFYUI_URL}/system_stats", timeout=2)
             log(f"  ComfyUI 就绪 ({(i + 1) * 3}s)")
             return True
         except:
-            if i < 5 or i % 10 == 0:
+            if i < 5 or i % 20 == 0:
                 log(f"  ⏳ 等待... ({(i + 1) * 3}s)")
     return False
 
