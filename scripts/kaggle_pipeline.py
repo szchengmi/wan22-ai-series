@@ -164,9 +164,14 @@ def find_models():
         f"{SCRIPT_DIR}/../models",
     ])
     for base in qw_bases:
+        # 方式1: Qwen2.5-3B-Instruct 子目录
         qw_path = f"{base}/Qwen2.5-3B-Instruct"
         if os.path.isdir(qw_path) and os.path.isfile(f"{qw_path}/config.json"):
             model_dirs["qwen"] = qw_path
+            break
+        # 方式2: 模型文件直接在 base 目录 (safetensors 格式)
+        if os.path.isfile(f"{base}/model.safetensors.index.json"):
+            model_dirs["qwen"] = base
             break
 
     return model_dirs
