@@ -47,23 +47,53 @@ COMFYUI_DIR = "/kaggle/working/ComfyUI"
 
 
 def _find_comfyui():
-    """查找 ComfyUI 目录（验证 main.py + 关键依赖存在）"""
+    """查找 ComfyUI 安装位置（pip 安装 或 目录安装）"""
+    # 方式1: pip 安装的 ComfyUI
+    try:
+        import importlib.util
+        spec = importlib.util.find_spec("comfy")
+        if spec and spec.origin:
+            # 找到 comfy 包目录，返回其上级
+            import os
+            pkg_dir = os.path.dirname(spec.origin)
+            # pip 安装时 comfy 包在 site-packages/comfy/
+            # ComfyUI 可执行入口在同级的 main.py 或者用 python -m comfy
+            return ("pip", pkg_dir)
+    except:
+        pass
+
+    # 方式2: 目录安装
     for candidate in ["/kaggle/working/ComfyUI", "/kaggle/working/ComfyUI-master"]:
         if os.path.isdir(candidate) and os.path.isfile(f"{candidate}/main.py"):
-            # 检查 requirements 是否已安装（看 server.py 和 comfy 包）
             comfy_pkg = os.path.join(candidate, "comfy")
             server_py = os.path.join(candidate, "server.py")
             if os.path.isdir(comfy_pkg) and os.path.isfile(server_py):
-                return candidate
-            # 目录存在但不完整，删掉重新安装
+                return ("dir", candidate)
+            # 目录存在但不完整
             log(f"  ComfyUI 目录不完整，将重新安装")
             shutil.rmtree(candidate, ignore_errors=True)
     return None
 
 
 def _install_comfyui():
-    """安装 ComfyUI + GGUF 插件 (zip 方式)"""
+    """安装 ComfyUI + GGUF 插件"""
     log("安装 ComfyUI...")
+    try:
+        result = run_cmd("pip install git+https://github.com/comfyanonymous/ComfyUI.git 2>&1 | tail -5", timeout=300)
+        if result.returncode != 0:
+            log(f"  pip install 失败: {result.stdout[-200:]} {result.stderr[-200:]}")
+            raise RuntimeError("pip install failed")
+        run_cmd("pip install -q gguf accelerate 2>&1 | tail -3", timeout=120)
+        _install_gguf_plugin()
+        log("ComfyUI 安装完成(pip)")
+    except Exception as e:
+        log(f"  pip 方式失败: {e}")
+        log("  尝试 zip 方式...")
+        _install_comfyui_zip()
+
+
+def _install_comfyui_zip():
+    """安装 ComfyUI (zip 备用方式)"""
     parent = os.path.dirname(COMFYUI_DIR)
     os.chdir(parent)
     run_cmd("curl -sL https://github.com/comfyanonymous/ComfyUI/archive/refs/heads/master.zip -o /tmp/comfyui.zip")
@@ -72,13 +102,51 @@ def _install_comfyui():
     if os.path.isdir("/kaggle/working/ComfyUI-master"):
         os.rename("/kaggle/working/ComfyUI-master", "/kaggle/working/ComfyUI")
     run_cmd("pip install -q -r requirements.txt", timeout=300)
-    run_cmd("pip install -q xformers gguf accelerate", timeout=120)
+    run_cmd("pip install -q gguf accelerate", timeout=120)
     # GGUF 插件
     run_cmd("curl -sL https://github.com/city96/ComfyUI-GGUF/archive/refs/heads/main.zip -o /tmp/gguf.zip")
     run_cmd("unzip -qo /tmp/gguf.zip -d custom_nodes/")
     run_cmd("mv custom_nodes/ComfyUI-GGUF-main custom_nodes/ComfyUI-GGUF 2>/dev/null; true")
     run_cmd("rm -f /tmp/gguf.zip")
-    log("ComfyUI 安装完成")
+    log("ComfyUI 安装完成(zip)")
+
+
+def _install_gguf_plugin():
+    """安装 GGUF 插件到 ComfyUI 的 custom_nodes"""
+    # 找到 ComfyUI 的 custom_nodes 目录
+    try:
+        import importlib.util
+        spec = importlib.util.find_spec("comfy")
+        if spec and spec.origin:
+            # pip 安装: site-packages/comfy/ → 上级是 site-packages/
+            # custom_nodes 在同级的 ComfyUI/custom_nodes/
+            pkg_dir = os.path.dirname(spec.origin)
+            parent = os.path.dirname(pkg_dir)
+            cn_dir = os.path.join(parent, "ComfyUI", "custom_nodes")
+            if os.path.isdir(cn_dir):
+                os.chdir(cn_dir)
+                if os.path.isdir("ComfyUI-GGUF"):
+                    return
+                run_cmd("curl -sL https://github.com/city96/ComfyUI-GGUF/archive/refs/heads/main.zip -o /tmp/gguf.zip")
+                run_cmd("unzip -qo /tmp/gguf.zip -d .")
+                run_cmd("mv ComfyUI-GGUF-main ComfyUI-GGUF 2>/dev/null; true")
+                run_cmd("rm -f /tmp/gguf.zip")
+                log("  GGUF 插件安装完成")
+                return
+    except:
+        pass
+
+    # 目录安装
+    for base in ["/kaggle/working/ComfyUI"]:
+        cn_dir = f"{base}/custom_nodes"
+        if os.path.isdir(cn_dir) and not os.path.isdir(f"{cn_dir}/ComfyUI-GGUF"):
+            os.chdir(cn_dir)
+            run_cmd("curl -sL https://github.com/city96/ComfyUI-GGUF/archive/refs/heads/main.zip -o /tmp/gguf.zip")
+            run_cmd("unzip -qo /tmp/gguf.zip -d .")
+            run_cmd("mv ComfyUI-GGUF-main ComfyUI-GGUF 2>/dev/null; true")
+            run_cmd("rm -f /tmp/gguf.zip")
+            log("  GGUF 插件安装完成")
+            return
 
 
 def _start_comfyui():
@@ -92,23 +160,45 @@ def _start_comfyui():
         pass
 
     # 查找或安装
-    cwd = _find_comfyui()
-    if not cwd:
+    result = _find_comfyui()
+    if result:
+        install_type, path = result
+        if install_type == "pip":
+            log(f"  ComfyUI (pip): {path}")
+        else:
+            log(f"  ComfyUI (dir): {path}")
+    else:
         _install_comfyui()
-        cwd = COMFYUI_DIR
+        result = _find_comfyui()
+        if not result:
+            log("❌ ComfyUI 安装后仍无法找到")
+            return False
+        install_type, path = result
 
+    cwd = path if isinstance(path, str) and os.path.isdir(path) else None
     log("启动 ComfyUI...")
     env = os.environ.copy()
     env["CUDA_VISIBLE_DEVICES"] = "0"
-    proc = subprocess.Popen(
-        ["python", "main.py", "--dont-print-server", "--highvram",
-         "--preview-method", "none", "--port", "8188",
-         "--cuda-device", "0"],
-        cwd=cwd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        env=env,
-    )
+
+    if install_type == "pip":
+        # pip 安装用 python -m 方式启动
+        proc = subprocess.Popen(
+            ["python", "-m", "comfy", "main", "--dont-print-server", "--highvram",
+             "--preview-method", "none", "--port", "8188"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=env,
+        )
+    else:
+        proc = subprocess.Popen(
+            ["python", "main.py", "--dont-print-server", "--highvram",
+             "--preview-method", "none", "--port", "8188",
+             "--cuda-device", "0"],
+            cwd=cwd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=env,
+        )
 
     # 快速轮询（3s 间隔），最多 10 分钟
     for i in range(200):
