@@ -287,9 +287,16 @@ def _generate_with_local_llm(prompt):
         "/kaggle/working/models/Qwen2.5-3B-Instruct",
     ])
     for candidate in qw_search:
-        if os.path.isdir(candidate) and os.path.isfile(f"{candidate}/config.json"):
+        # 方式1: candidate 就是 Qwen 目录
+        if os.path.isfile(f"{candidate}/config.json"):
             model_path = candidate
             log(f"  找到 Qwen: {candidate}")
+            break
+        # 方式2: candidate 是父目录，Qwen 在子目录里
+        sub = f"{candidate}/Qwen2.5-3B-Instruct"
+        if os.path.isdir(sub) and os.path.isfile(f"{sub}/config.json"):
+            model_path = sub
+            log(f"  找到 Qwen: {sub}")
             break
 
     if not model_path:
