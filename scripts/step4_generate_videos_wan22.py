@@ -54,7 +54,6 @@ def _find_comfyui():
         spec = importlib.util.find_spec("comfy")
         if spec and spec.origin:
             # 找到 comfy 包目录，返回其上级
-            import os
             pkg_dir = os.path.dirname(spec.origin)
             # pip 安装时 comfy 包在 site-packages/comfy/
             # ComfyUI 可执行入口在同级的 main.py 或者用 python -m comfy
