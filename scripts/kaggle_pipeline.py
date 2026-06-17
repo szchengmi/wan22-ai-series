@@ -274,35 +274,50 @@ def _generate_with_local_llm(prompt):
     import torch
     from transformers import AutoTokenizer, AutoModelForCausalLM
 
-    # 找 Qwen 模型
+    # 找 Qwen 模型（搜索 Dataset 挂载 + 本地）
     model_path = None
-    for candidate in [
+    qw_search = []
+    for ds in ["/kaggle/input/datasets/saysnkaggle/wan2-2-5b-q4-gguf/model",
+               "/kaggle/input/datasets/saysnkaggle/newdataset"]:
+        if os.path.isdir(ds):
+            qw_search.append(ds)
+    qw_search.extend([
         f"{MODEL_CACHE_DIR}/Qwen2.5-3B-Instruct",
+        "/kaggle/working/wan22-ai-series/models/Qwen2.5-3B-Instruct",
         "/kaggle/working/models/Qwen2.5-3B-Instruct",
-    ]:
+    ])
+    for candidate in qw_search:
         if os.path.isdir(candidate) and os.path.isfile(f"{candidate}/config.json"):
             model_path = candidate
+            log(f"  找到 Qwen: {candidate}")
             break
 
     if not model_path:
         model_path = "Qwen/Qwen2.5-3B-Instruct"
+        log(f"  本地无 Qwen，将从 Hub 下载: {model_path}")
 
+    log(f"  加载 tokenizer: {model_path}")
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+    log(f"  加载模型...")
     model = AutoModelForCausalLM.from_pretrained(
         model_path, torch_dtype=torch.float16, device_map="auto",
         trust_remote_code=True, use_safetensors=True,
     )
+    log(f"  模型加载完成, 设备: {model.device}")
     model.eval()
 
     messages = [{"role": "user", "content": prompt}]
     input_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     inputs = tokenizer(input_text, return_tensors="pt").to(model.device)
 
+    log(f"  输入 token 数: {inputs.input_ids.shape[1]}")
+    log(f"  开始生成 (max_new_tokens=4096)...")
     with torch.no_grad():
         outputs = model.generate(
             **inputs, max_new_tokens=4096, temperature=0.9, top_p=0.95,
-            do_sample=True, pad_token_id=tokenizer.eos_token_id
+            do_sample=True, pad_token_id=tokenizer.eos_token_id,
         )
+    log(f"  生成完成, 输出 token 数: {outputs[0].shape[0]}")
 
     generated = outputs[0][inputs.input_ids.shape[1]:]
     return tokenizer.decode(generated, skip_special_tokens=True)
