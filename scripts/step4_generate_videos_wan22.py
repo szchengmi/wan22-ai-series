@@ -176,22 +176,24 @@ def _start_comfyui():
     env = os.environ.copy()
     env["CUDA_VISIBLE_DEVICES"] = "0"
 
+    log_file = "/kaggle/working/ai-series/comfyui_startup.log"
+    log_fh = open(log_file, "w")
     if install_type == "pip":
         proc = subprocess.Popen(
-            ["python", "-m", "comfy", "main", "--dont-print-server", "--highvram",
+            ["python", "-m", "comfy", "main", "--dont-print-server",
              "--preview-method", "none", "--listen", "0.0.0.0", "--port", "8188"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=log_fh,
+            stderr=subprocess.STDOUT,
             env=env,
         )
     else:
         proc = subprocess.Popen(
-            ["python", "main.py", "--dont-print-server", "--highvram",
+            ["python", "main.py", "--dont-print-server",
              "--preview-method", "none", "--listen", "0.0.0.0", "--port", "8188",
              "--cuda-device", "0"],
             cwd=cwd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=log_fh,
+            stderr=subprocess.STDOUT,
             env=env,
         )
 
@@ -201,10 +203,21 @@ def _start_comfyui():
         try:
             urllib.request.urlopen(f"{COMFYUI_URL}/system_stats", timeout=2)
             log(f"  ComfyUI 就绪 ({(i + 1) * 3}s)")
+            log_fh.close()
             return True
         except:
             if i < 5 or i % 20 == 0:
                 log(f"  ⏳ 等待... ({(i + 1) * 3}s)")
+    # 超时，打印启动日志
+    log_fh.close()
+    try:
+        with open(log_file, "r") as f:
+            last_lines = f.readlines()[-30:]
+        log("  ❌ ComfyUI 启动超时，最后30行日志:")
+        for line in last_lines:
+            log(f"    {line.rstrip()}")
+    except:
+        log(f"  ❌ ComfyUI 启动超时，无法读取 {log_file}")
     return False
 
 
