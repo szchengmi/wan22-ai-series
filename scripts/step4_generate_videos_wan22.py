@@ -176,13 +176,21 @@ def _start_comfyui():
     env = os.environ.copy()
     env["CUDA_VISIBLE_DEVICES"] = "0"
 
+    # 检测 GPU 可用性
+    try:
+        import torch
+        has_gpu = torch.cuda.is_available()
+    except:
+        has_gpu = False
+    gpu_flag = [] if has_gpu else ["--cpu"]
+    log(f"  GPU: {'可用' if has_gpu else '不可用(CPU模式)'}")
+
     log_file = "/kaggle/working/ai-series/comfyui_startup.log"
     log_fh = open(log_file, "w")
     if install_type == "pip":
         proc = subprocess.Popen(
             ["python", "-m", "comfy", "main", "--dont-print-server",
-             "--preview-method", "none", "--listen", "0.0.0.0", "--port", "8188",
-             "--cpu"],
+             "--preview-method", "none", "--listen", "0.0.0.0", "--port", "8188"] + gpu_flag,
             stdout=log_fh,
             stderr=subprocess.STDOUT,
             env=env,
@@ -190,8 +198,7 @@ def _start_comfyui():
     else:
         proc = subprocess.Popen(
             ["python", "main.py", "--dont-print-server",
-             "--preview-method", "none", "--listen", "0.0.0.0", "--port", "8188",
-             "--cpu"],
+             "--preview-method", "none", "--listen", "0.0.0.0", "--port", "8188"] + gpu_flag,
             cwd=cwd,
             stdout=log_fh,
             stderr=subprocess.STDOUT,
