@@ -321,18 +321,8 @@ def _generate_with_local_llm(prompt):
         f.write(raw_text)
     log(f"  原始输出已保存: {raw_path} ({len(raw_text)} 字符)")
 
-    # 尝试解析，失败则 fallback
-    try:
-        script_data = _parse_script_response(raw_text)
-        log(f"  JSON 解析成功")
-        return script_data
-    except Exception as e:
-        log(f"  ⚠️ JSON 解析失败: {e}")
-        log(f"  使用预置剧本作为 fallback")
-        script_data = get_fallback_script(EPISODE_NUM, NUM_SCENES, SHOTS_PER_SCENE)
-        # 同时保存 fallback 供参考
-        save_json(script_data, f"{raw_dir}/fallback_script.json")
-        return script_data
+    # 解析 JSON，失败则停止
+    return _parse_script_response(raw_text)
 
 def _parse_script_response(text):
     """解析LLM返回的JSON剧本"""
