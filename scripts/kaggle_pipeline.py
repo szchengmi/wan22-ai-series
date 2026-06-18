@@ -330,13 +330,15 @@ def _parse_script_response(text):
         lines = text.split("\n")
         text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:]).strip()
     # 修复常见 JSON 问题
-    text = text.replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t")
-    text = re.sub(r',\s*}', '}', text)
-    text = re.sub(r',\s*]', ']', text)
+    text = text.replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\\t")
     # 修复 "xxx" "xxx" 之间缺逗号（常见 Qwen 错误）
     text = re.sub(r'"\s*\n\s*"', '",\n"', text)
     # 修复 "xxx"\n"xxx" 之间缺逗号
     text = re.sub(r'"\s+"', ', "', text)
+    # 修复 ] 或 } 后面紧跟 " 但缺少逗号（如 ] "next_episode_hook"）
+    text = re.sub(r'(?<=[\]}])\s+"', ', "', text)
+    # 修复末尾多余的逗号: ,] → ] 和 ,} → }
+    text = re.sub(r',(\s*[\]}])', r'\1', text)
 
     try:
         return json.loads(text)
