@@ -302,10 +302,10 @@ def _generate_with_local_llm(prompt):
     inputs = tokenizer(input_text, return_tensors="pt").to(model.device)
 
     log(f"  输入 token 数: {inputs.input_ids.shape[1]}")
-    log(f"  开始生成 (max_new_tokens=4096, greedy)...")
+    log(f"  开始生成 (max_new_tokens=2048, greedy)...")
     with torch.no_grad():
         outputs = model.generate(
-            **inputs, max_new_tokens=4096, do_sample=False,
+            **inputs, max_new_tokens=2048, do_sample=False,
             pad_token_id=tokenizer.eos_token_id,
         )
     log(f"  生成完成, 输出 token 数: {outputs[0].shape[0]}")
@@ -313,7 +313,7 @@ def _generate_with_local_llm(prompt):
     generated = outputs[0][inputs.input_ids.shape[1]:]
     raw_text = tokenizer.decode(generated, skip_special_tokens=True)
 
-    # 保存原始输出到 /kaggle/working/ai-series/
+    # 保存原始输出
     raw_dir = "/kaggle/working/ai-series"
     os.makedirs(raw_dir, exist_ok=True)
     raw_path = f"{raw_dir}/qwen_raw_output.txt"
@@ -321,7 +321,18 @@ def _generate_with_local_llm(prompt):
         f.write(raw_text)
     log(f"  原始输出已保存: {raw_path} ({len(raw_text)} 字符)")
 
-    return raw_text
+    # 尝试解析，失败则 fallback
+    try:
+        script_data = _parse_script_response(raw_text)
+        log(f"  JSON 解析成功")
+        return script_data
+    except Exception as e:
+        log(f"  ⚠️ JSON 解析失败: {e}")
+        log(f"  使用预置剧本作为 fallback")
+        script_data = get_fallback_script(EPISODE_NUM, NUM_SCENES, SHOTS_PER_SCENE)
+        # 同时保存 fallback 供参考
+        save_json(script_data, f"{raw_dir}/fallback_script.json")
+        return script_data
 
 def _parse_script_response(text):
     """解析LLM返回的JSON剧本"""
@@ -355,13 +366,35 @@ def _parse_script_response(text):
             fixed = truncated
             if fixed and not fixed.endswith('"') and not fixed.endswith('}') and not fixed.endswith(']'):
                 fixed += '"'
-            fixed += '}' * open_braces + ']' * open_brackets
+            # 尝试直接在末尾补
+            attempt1 = fixed + '}' * open_braces + ']' * open_brackets
             try:
-                result = json.loads(fixed)
+                result = json.loads(attempt1)
                 log(f"  ✅ 修复截断 JSON 成功 (补 {open_braces}个}} {open_brackets}个])")
                 return result
             except:
                 pass
+            # 尝试在 }]} 或 }} 后面插入缺失的 ]（Qwen 常见错误：scenes] 写成 scenes}）
+            attempt2 = re.sub(r'\}\]', '}]', fixed)
+            if attempt2 != fixed:
+                attempt2 += '}' * open_braces + ']' * open_brackets
+                try:
+                    result = json.loads(attempt2)
+                    log(f"  ✅ 修复截断 JSON 成功 (}}] → }}])")
+                    return result
+                except:
+                    pass
+            # 尝试逐字符插入 ] 再解析
+            for pos in range(len(fixed) - 1, -1, -1):
+                if fixed[pos] in '}]':
+                    attempt3 = fixed[:pos+1] + ']' + fixed[pos+1:]
+                    attempt3 += '}' * open_braces
+                    try:
+                        result = json.loads(attempt3)
+                        log(f"  ✅ 修复截断 JSON 成功 (在pos{pos}插入])")
+                        return result
+                    except:
+                        pass
 
         # 尝试提取第一个完整 JSON 对象
         depth = 0
