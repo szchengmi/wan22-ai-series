@@ -195,8 +195,18 @@ def _queue_prompt(workflow):
         data=payload,
         headers={"Content-Type": "application/json"},
     )
-    with urllib.request.urlopen(req, timeout=600) as resp:
-        return json.loads(resp.read())
+    try:
+        with urllib.request.urlopen(req, timeout=600) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()
+        log(f"  ComfyUI 错误: HTTP {e.code}")
+        log(f"  请求体(前500): {payload[:500]}")
+        log(f"  响应体: {body[:300]}")
+        raise
+    except Exception as e:
+        log(f"  请求体(前500): {payload[:500]}")
+        raise
 
 
 def _get_history(prompt_id):
