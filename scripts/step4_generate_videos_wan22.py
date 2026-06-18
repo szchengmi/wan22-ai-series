@@ -501,6 +501,15 @@ def main(storyboard=None):
 
     log(f"参数: {w}x{h} | {num_frames}f | {steps}步 | CFG={cfg} | {sampler}/{scheduler}")
 
+    # 检查 ComfyUI 是否识别到模型（通过 system_stats 验证）
+    try:
+        import urllib.request
+        stats = json.loads(urllib.request.urlopen(f"{COMFYUI_URL}/system_stats", timeout=5).read())
+        devices = stats.get("devices", [])
+        log(f"  ComfyUI devices: {[d.get('name','?') for d in devices]}")
+    except Exception as e:
+        log(f"  ⚠️ system_stats 失败: {e}")
+
     count = 0
     for scene in storyboard.get("scenes", []):
         for shot in scene.get("shots", []):
@@ -567,6 +576,10 @@ def main(storyboard=None):
                     dur = shot.get("duration_seconds", 3)
                     size_mb = os.path.getsize(out) / 1e6
                     log(f"  [{count}/{total}] {sid} ✓ ({num_frames}f, {dur}s, {size_mb:.1f}MB)")
+                    # 如果文件太小（<50KB），说明可能是静态帧
+                    if size_mb < 0.05:
+                        log(f"    ⚠️ 文件极小({size_mb:.3f}MB)，可能是静态帧！")
+                        _check_comfyui_logs()
                 else:
                     log(f"  [{count}/{total}] {sid} 无输出视频")
                     # 调试：打印完整 outputs 结构
