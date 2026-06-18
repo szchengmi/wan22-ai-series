@@ -329,23 +329,44 @@ def _parse_script_response(text):
     if text.startswith("```"):
         lines = text.split("\n")
         text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:]).strip()
-    # 修复常见 JSON 问题：模型可能返回字面 \n 作为换行
+    # 修复常见 JSON 问题
     text = text.replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t")
     text = re.sub(r',\s*}', '}', text)
     text = re.sub(r',\s*]', ']', text)
+    # 修复 "xxx" "xxx" 之间缺逗号（常见 Qwen 错误）
+    text = re.sub(r'"\s*\n\s*"', '",\n"', text)
+    # 修复 "xxx"\n"xxx" 之间缺逗号
+    text = re.sub(r'"\s+"', ', "', text)
+
     try:
         return json.loads(text)
     except json.JSONDecodeError as e:
-        # 调试：输出前500字符
         log(f"  ⚠️ JSON 解析失败: {e}")
-        log(f"  输出前500字符: {text[:500]!r}")
+        log(f"  错误位置: pos {e.pos}, line {e.lineno} col {e.colno}")
+
+        # 尝试修复截断的 JSON：补全缺失的闭合括号
+        truncated = text.rstrip()
+        open_braces = truncated.count('{') - truncated.count('}')
+        open_brackets = truncated.count('[') - truncated.count(']')
+        if open_braces > 0 or open_brackets > 0:
+            # 先关闭未完成的字符串值
+            fixed = truncated
+            if fixed and not fixed.endswith('"') and not fixed.endswith('}') and not fixed.endswith(']'):
+                fixed += '"'
+            fixed += '}' * open_braces + ']' * open_brackets
+            try:
+                result = json.loads(fixed)
+                log(f"  ✅ 修复截断 JSON 成功 (补 {open_braces}个}} {open_brackets}个])")
+                return result
+            except:
+                pass
+
         # 尝试提取第一个完整 JSON 对象
         depth = 0
         start = -1
         for i, c in enumerate(text):
             if c == '{':
-                if depth == 0:
-                    start = i
+                if depth == 0: start = i
                 depth += 1
             elif c == '}':
                 depth -= 1
@@ -356,7 +377,8 @@ def _parse_script_response(text):
                         return result
                     except:
                         continue
-        # 尝试用 yaml 解析（更宽松）
+
+        # 尝试 yaml
         try:
             import yaml
             result = yaml.safe_load(text)
@@ -365,7 +387,8 @@ def _parse_script_response(text):
                 return result
         except:
             pass
-        # 最终降级：保存错误文本，抛出
+
+        # 保存错误文本
         err_path = "/kaggle/working/ai-series/qwen_parse_error.txt"
         with open(err_path, "w", encoding="utf-8") as f:
             f.write(text)

@@ -15,8 +15,8 @@ import shutil
 # ============================================================
 EPISODE_NUM = int(os.environ.get("EPISODE_NUM", "1"))
 GENRE = os.environ.get("GENRE", "都市情感")
-NUM_SCENES = int(os.environ.get("NUM_SCENES", "6"))
-SHOTS_PER_SCENE = int(os.environ.get("SHOTS_PER_SCENE", "3"))
+NUM_SCENES = int(os.environ.get("NUM_SCENES", "4"))
+SHOTS_PER_SCENE = int(os.environ.get("SHOTS_PER_SCENE", "2"))
 IMAGE_STEPS = int(os.environ.get("IMAGE_STEPS", "20"))
 IMAGE_GUIDANCE = float(os.environ.get("IMAGE_GUIDANCE", "7.5"))
 
