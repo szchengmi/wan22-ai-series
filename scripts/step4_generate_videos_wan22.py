@@ -181,7 +181,8 @@ def _start_comfyui():
     if install_type == "pip":
         proc = subprocess.Popen(
             ["python", "-m", "comfy", "main", "--dont-print-server",
-             "--preview-method", "none", "--listen", "0.0.0.0", "--port", "8188"],
+             "--preview-method", "none", "--listen", "0.0.0.0", "--port", "8188",
+             "--cpu"],
             stdout=log_fh,
             stderr=subprocess.STDOUT,
             env=env,
@@ -190,7 +191,7 @@ def _start_comfyui():
         proc = subprocess.Popen(
             ["python", "main.py", "--dont-print-server",
              "--preview-method", "none", "--listen", "0.0.0.0", "--port", "8188",
-             "--cuda-device", "0"],
+             "--cpu"],
             cwd=cwd,
             stdout=log_fh,
             stderr=subprocess.STDOUT,
