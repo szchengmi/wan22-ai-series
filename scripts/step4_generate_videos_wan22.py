@@ -580,6 +580,8 @@ def main(storyboard=None):
                     if size_mb < 0.05:
                         log(f"    ⚠️ 文件极小({size_mb:.3f}MB)，可能是静态帧！")
                         _check_comfyui_logs()
+                        # 打印 history 中该 prompt 的详细执行信息
+                        _print_prompt_history(prompt_id)
                 else:
                     log(f"  [{count}/{total}] {sid} 无输出视频")
                     # 调试：打印完整 outputs 结构
@@ -617,6 +619,53 @@ def _save_placeholder_video(shot, output_path, num_frames):
     )
     if os.path.exists(tmp_png):
         os.remove(tmp_png)
+
+
+def _check_comfyui_logs():
+    """检查 ComfyUI 执行日志中的错误信息"""
+    log_file = "/kaggle/working/ai-series/comfyui_startup.log"
+    if not os.path.isfile(log_file):
+        return
+    try:
+        with open(log_file, "r") as f:
+            lines = f.readlines()
+        errors = [l.strip() for l in lines[-200:] if any(k in l.lower() for k in ["error", "warning", "exception", "failed"])]
+        if errors:
+            log(f"    ComfyUI 最近错误:")
+            for e in errors[-10:]:
+                log(f"      {e[:200]}")
+        else:
+            log(f"    ComfyUI 日志无错误")
+    except Exception as e:
+        log(f"    ⚠️ 无法读日志: {e}")
+
+
+def _print_prompt_history(prompt_id):
+    """打印 prompt 执行历史"""
+    try:
+        import urllib.request
+        history = json.loads(urllib.request.urlopen(f"{COMFYUI_URL}/history/{prompt_id}", timeout=5).read())
+        if prompt_id in history:
+            entry = history[prompt_id]
+            log(f"    === Prompt {prompt_id[:8]} 执行历史 ===")
+            for node_id, node_output in entry.get("outputs", {}).items():
+                for k, v in node_output.items():
+                    if isinstance(v, list) and len(v) > 0:
+                        first = v[0]
+                        if isinstance(first, dict):
+                            info = {kk: str(vv)[:80] for kk, vv in first.items()}
+                            log(f"    node[{node_id}].{k}[0] = {info}")
+                        else:
+                            log(f"    node[{node_id}].{k}[0] = {str(first)[:100]}")
+                    elif isinstance(v, (str, int, float, bool)):
+                        log(f"    node[{node_id}].{k} = {v}")
+            # 也打印 status
+            status = entry.get("status", {})
+            log(f"    status: {status}")
+        else:
+            log(f"    history 中无此 prompt_id")
+    except Exception as e:
+        log(f"    ⚠️ 无法获取 history: {e}")
 
 
 if __name__ == "__main__":
