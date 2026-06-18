@@ -206,10 +206,10 @@ EMOTION_SPEED = {
 
 # Wan2.2 视频生成参数
 WAN22_DEFAULTS = {
-    "width": 512,
-    "height": 320,
+    "width": 480,
+    "height": 288,
     "fps": 8,
-    "steps": 20,
+    "steps": 16,
     "cfg": 5.0,
     "sampler": "dpmpp_2m",
     "scheduler": "karras",
