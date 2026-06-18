@@ -548,6 +548,14 @@ def main(storyboard=None):
                 outputs = completion.get("outputs", {})
                 video_output = None
                 for node_id, node_output in outputs.items():
+                    # VHS_VideoCombine 输出 key 可能是 "gifs" 或 "vhs_filenames"
+                    if "gifs" in node_output:
+                        gifs = node_output["gifs"]
+                        if isinstance(gifs, list) and len(gifs) > 0:
+                            video_output = gifs[0]
+                            if isinstance(video_output, dict):
+                                video_output = video_output.get("fullpath", video_output.get("filename", ""))
+                            break
                     if "vhs_filenames" in node_output:
                         video_output = node_output["vhs_filenames"][0]
                         break
@@ -557,7 +565,8 @@ def main(storyboard=None):
                     import shutil
                     shutil.copy2(video_output, out)
                     dur = shot.get("duration_seconds", 3)
-                    log(f"  [{count}/{total}] {sid} ✓ ({num_frames}f, {dur}s)")
+                    size_mb = os.path.getsize(out) / 1e6
+                    log(f"  [{count}/{total}] {sid} ✓ ({num_frames}f, {dur}s, {size_mb:.1f}MB)")
                 else:
                     log(f"  [{count}/{total}] {sid} 无输出视频")
                     # 调试：打印完整 outputs 结构
