@@ -296,15 +296,24 @@ def _get_history(prompt_id):
 def _wait_for_completion(prompt_id, timeout=1800):
     """等待工作流执行完成"""
     start = time.time()
+    last_log = 0
     while time.time() - start < timeout:
         try:
             history = _get_history(prompt_id)
             if prompt_id in history:
                 entry = history[prompt_id]
-                if entry.get("status", {}).get("status_str") == "success":
+                status = entry.get("status", {}).get("status_str")
+                if status == "success":
                     return entry
-                if entry.get("status", {}).get("status_str") == "error":
+                if status == "error":
                     raise RuntimeError(f"工作流执行失败: {entry}")
+                # 每30秒打印一次进度
+                elapsed = time.time() - start
+                if elapsed - last_log >= 30:
+                    executors = entry.get("status", {}).get("exec_info", {})
+                    queue_remaining = executors.get("queue_remaining", "?")
+                    log(f"    ⏳ {elapsed:.0f}s 完成, queue={queue_remaining}")
+                    last_log = elapsed
         except urllib.error.HTTPError:
             pass
         time.sleep(5)
@@ -551,6 +560,13 @@ def main(storyboard=None):
                     log(f"  [{count}/{total}] {sid} ✓ ({num_frames}f, {dur}s)")
                 else:
                     log(f"  [{count}/{total}] {sid} 无输出视频")
+                    # 调试：打印完整 outputs 结构
+                    log(f"    DEBUG outputs keys: {list(outputs.keys()) if outputs else 'None'}")
+                    for nid, nout in (outputs or {}).items():
+                        if isinstance(nout, dict):
+                            for k, v in nout.items():
+                                val_preview = str(v)[:200]
+                                log(f"    node[{nid}].{k} = {val_preview}")
                     _save_placeholder_video(shot, out, num_frames)
 
             except Exception as e:
