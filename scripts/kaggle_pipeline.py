@@ -302,10 +302,10 @@ def _generate_with_local_llm(prompt):
     inputs = tokenizer(input_text, return_tensors="pt").to(model.device)
 
     log(f"  输入 token 数: {inputs.input_ids.shape[1]}")
-    log(f"  开始生成 (max_new_tokens=1024, greedy)...")
+    log(f"  开始生成 (max_new_tokens=4096, greedy)...")
     with torch.no_grad():
         outputs = model.generate(
-            **inputs, max_new_tokens=1024, do_sample=False,
+            **inputs, max_new_tokens=4096, do_sample=False,
             pad_token_id=tokenizer.eos_token_id,
         )
     log(f"  生成完成, 输出 token 数: {outputs[0].shape[0]}")
