@@ -359,7 +359,14 @@ def _build_wan22_workflow(positive_prompt, negative_prompt, model_path,
             "inputs": {
                 "images": ["8", 0],
             },
-            "widgets_values": [WAN22_DEFAULTS["fps"], 0, "output", "h264-mp4", False, True],
+            "widgets_values": {
+                "frame_rate": WAN22_DEFAULTS["fps"],
+                "loop_count": 0,
+                "filename_prefix": "wan22_output",
+                "format": "video/h264-mp4",
+                "pingpong": False,
+                "save_output": True,
+            },
         },
     }
     return workflow
