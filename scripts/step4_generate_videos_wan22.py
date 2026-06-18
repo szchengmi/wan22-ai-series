@@ -244,17 +244,16 @@ def _build_wan22_workflow(positive_prompt, negative_prompt, model_path,
     """
     构建 Wan2.2 T2V ComfyUI 工作流（API 格式）。
 
-    节点:
-      1: UnetLoaderGGUF — 加载 GGUF UNET
-      2: CLIPLoaderGGUF — 加载 text encoder
-      3: VAELoader — 加载 VAE
-      4: EmptyLatentVideo — 创建空 latent
-      5: CLIPTextEncode (positive) — 正面提示词
-      6: CLIPTextEncode (negative) — 负面提示词
-      7: WanImageToVideo — T2V latent 准备
-      8: KSampler — 去噪采样
-      9: VAEDecode — 解码 latent 为像素
-      10: VHS_VideoCombine — 保存视频
+  节点:
+     1: UnetLoaderGGUF — 加载 GGUF UNET
+     2: CLIPLoaderGGUF — 加载 text encoder
+     3: VAELoader — 加载 VAE
+     4: CLIPTextEncode (positive) — 正面提示词
+     5: CLIPTextEncode (negative) — 负面提示词
+     6: WanImageToVideo — T2V latent 准备（自动生成空 latent）
+     7: KSampler — 去噪采样
+     8: VAEDecode — 解码 latent 为像素
+     9: VHS_VideoCombine — 保存视频
     """
     # 计算 latent 尺寸
     lat_w = width // 8
@@ -270,7 +269,7 @@ def _build_wan22_workflow(positive_prompt, negative_prompt, model_path,
         "2": {
             "class_type": "CLIPLoaderGGUF",
             "inputs": {},
-            "widgets_values": [clip_path, "wan"],  # type 必须是 "wan"
+            "widgets_values": [clip_path, "wan"],
         },
         "3": {
             "class_type": "VAELoader",
@@ -278,53 +277,47 @@ def _build_wan22_workflow(positive_prompt, negative_prompt, model_path,
             "widgets_values": [vae_path],
         },
         "4": {
-            "class_type": "EmptyLatentVideo",
-            "inputs": {},
-            "widgets_values": [width, height, lat_frames, 1],  # width, height, batch, frames_div4+1 的变体
-        },
-        "5": {
             "class_type": "CLIPTextEncode",
             "inputs": {"clip": ["2", 0]},
             "widgets_values": [positive_prompt],
         },
-        "6": {
+        "5": {
             "class_type": "CLIPTextEncode",
             "inputs": {"clip": ["2", 0]},
             "widgets_values": [negative_prompt],
         },
-        "7": {
+        "6": {
             "class_type": "WanImageToVideo",
             "inputs": {
-                "positive": ["5", 0],
-                "negative": ["6", 0],
+                "positive": ["4", 0],
+                "negative": ["5", 0],
                 "vae": ["3", 0],
-                "latent_image": ["4", 0],
             },
             "widgets_values": [width, height, lat_frames],
         },
-        "8": {
+        "7": {
             "class_type": "KSampler",
             "inputs": {
                 "model": ["1", 0],
-                "positive": ["7", 0],
-                "negative": ["7", 1],
-                "latent_image": ["7", 2],
+                "positive": ["6", 0],
+                "negative": ["6", 1],
+                "latent_image": ["6", 2],
             },
             "widgets_values": [seed, "fixed", steps, cfg, sampler, scheduler, 1.0],
         },
-        "9": {
+        "8": {
             "class_type": "VAEDecode",
             "inputs": {
-                "samples": ["8", 0],
+                "samples": ["7", 0],
                 "vae": ["3", 0],
             },
         },
-        "10": {
+        "9": {
             "class_type": "VHS_VideoCombine",
             "inputs": {
-                "images": ["9", 0],
+                "images": ["8", 0],
             },
-            "widgets_values": [8, 0, "output", "h264-mp4", False, True],
+            "widgets_values": [fps, 0, "output", "h264-mp4", False, True],
         },
     }
     return workflow
