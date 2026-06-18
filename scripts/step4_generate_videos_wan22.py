@@ -145,6 +145,42 @@ def _install_gguf_plugin():
     log("  GGUF 插件安装完成")
 
 
+def _register_model_paths(comfyui_dir):
+    """
+    将 Kaggle Dataset 路径注册到 ComfyUI 的 folder_paths，
+    使 UnetLoaderGGUF / CLIPLoaderGGUF / VAELoader 能通过文件名找到模型。
+
+    注册:
+      - unet_gguf → Dataset 根目录（含 *.gguf 文件）
+      - clip_gguf → Dataset 根目录
+      - vae → Dataset 根目录（含 *.safetensors）
+      - unet → Dataset 根目录（兼容非 GGUF 路径）
+      - clip → Dataset 根目录
+    """
+    try:
+        import folder_paths
+        # 查找所有 Dataset 目录
+        dataset_dirs = []
+        for d in ["/kaggle/input/datasets/saysnkaggle/wan2-2-5b-q4-gguf",
+                   "/kaggle/input/datasets/saysnkaggle/newdataset",
+                   "/kaggle/input/newdataset"]:
+            if os.path.isdir(d):
+                dataset_dirs.append(d)
+                # 也注册 model/ 子目录
+                sub = f"{d}/model"
+                if os.path.isdir(sub):
+                    dataset_dirs.append(sub)
+
+        for d in dataset_dirs:
+            for folder_name in ["unet_gguf", "unet", "clip_gguf", "clip", "vae",
+                                "diffusion_models", "text_encoders"]:
+                folder_paths.add_model_folder(folder_name, d)
+
+        log(f"  已注册 {len(dataset_dirs)} 个 Dataset 路径到 folder_paths")
+    except Exception as e:
+        log(f"  ⚠️ 注册模型路径失败: {e}")
+
+
 def _start_comfyui():
     """启动 ComfyUI 服务器（后台）"""
     # 已在运行？
@@ -184,6 +220,9 @@ def _start_comfyui():
         has_gpu = False
     gpu_flag = [] if has_gpu else ["--cpu"]
     log(f"  GPU: {'可用' if has_gpu else '不可用(CPU模式)'}")
+
+    # 注册 Dataset 路径到 folder_paths（让 GGUF 加载器能找到模型）
+    _register_model_paths(cwd)
 
     log_file = "/kaggle/working/ai-series/comfyui_startup.log"
     log_fh = open(log_file, "w")
@@ -302,18 +341,22 @@ def _build_wan22_workflow(positive_prompt, negative_prompt, model_path,
     lat_h = height // 8
     lat_frames = (frames - 1) // 4 + 1
 
+    # 只传文件名（ComfyUI 通过 folder_paths 注册路径能找到完整路径）
+    unet_filename = os.path.basename(model_path)
+    clip_filename = os.path.basename(clip_path)
+
     workflow = {
         "1": {
             "class_type": "UnetLoaderGGUF",
-            "inputs": {"model_path": model_path},
+            "inputs": {"unet_name": unet_filename},
         },
         "2": {
             "class_type": "CLIPLoaderGGUF",
-            "inputs": {"model_path": clip_path, "type": "wan"},
+            "inputs": {"clip_name": clip_filename, "type": "wan"},
         },
         "3": {
             "class_type": "VAELoader",
-            "inputs": {"vae_name": vae_path},
+            "inputs": {"vae_name": os.path.basename(vae_path)},
         },
         "4": {
             "class_type": "CLIPTextEncode",
