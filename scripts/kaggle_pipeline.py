@@ -321,6 +321,16 @@ def _generate_with_local_llm(prompt):
         f.write(raw_text)
     log(f"  原始输出已保存: {raw_path} ({len(raw_text)} 字符)")
 
+    # 卸载 Qwen 模型释放 GPU 内存
+    log("  卸载 Qwen 模型释放 GPU 内存...")
+    del model
+    del tokenizer
+    import gc
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    log("  GPU 内存已释放")
+
     return raw_text  # 返回原始文本，由调用方统一解析
 
 def _parse_script_response(text):

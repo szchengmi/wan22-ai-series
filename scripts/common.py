@@ -206,8 +206,8 @@ EMOTION_SPEED = {
 
 # Wan2.2 视频生成参数
 WAN22_DEFAULTS = {
-    "width": 846,
-    "height": 480,
+    "width": 512,
+    "height": 320,
     "fps": 8,
     "steps": 20,
     "cfg": 5.0,
