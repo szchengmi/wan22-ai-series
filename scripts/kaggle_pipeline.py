@@ -227,36 +227,20 @@ def step1_generate_script(force=False):
 
 
 def _build_story_prompt():
-    return f"""你是一个专业的中文短剧编剧。请为一部{GENRE}题材的AI短剧写第{EPISODE_NUM}集的完整剧本。
+    return f"""你是中文短剧编剧。写一部{GENRE}短剧第{EPISODE_NUM}集。
 
-【角色设定】
-- 小明(xiaoming): 28岁程序员, 内向但善良, 戴眼镜, 短发, 常穿深色卫衣
-- 小丽(xiaoli): 26岁平面设计师, 活泼开朗, 长发, 穿浅色连衣裙
-- 王总(boss_wang): 45岁公司总监, 严厉但公正, 西装革履
+角色：小明(xiaoming)28岁程序员戴眼镜短发深色卫衣；小丽(xiaoli)26岁设计师长发浅色裙；王总(boss_wang)45岁总监西装。
+场景：office现代办公室、cafe温馨咖啡馆、park城市公园、apartment温馨公寓。
 
-【可用场景】
-- office: 现代办公室, 落地窗, 简约风格
-- cafe: 温馨咖啡馆, 木质桌椅, 暖黄灯光
-- park: 城市公园, 绿树成荫
-- apartment: 温馨公寓, 北欧风格
-- street: 城市街道, 傍晚
+要求：3-5分钟，{NUM_SCENES}场景，每场景{SHOTS_PER_SCENE}镜头，开头→发展→高潮→留悬念。
 
-【要求】
-1. 时长3-5分钟（约800-1200字）
-2. 包含{NUM_SCENES}个场景，每个场景{SHOTS_PER_SCENE}个镜头
-3. 完整故事线：开头→发展→高潮→结尾（留悬念）
-4. 对话口语化，符合角色性格
-5. 结尾留悬念
-
-输出纯JSON（不要markdown标记）：
-{{"episode": {EPISODE_NUM}, "title": "标题", "duration_estimate": "3-5分钟",
-"scenes": [{{"scene_id": "scene_1", "location": "office", "time_of_day": "morning",
-"lighting": "自然光", "mood": "描述氛围",
-"shots": [{{"shot_id": "shot_1", "shot_type": "medium_shot", "camera_movement": "static",
-"duration_seconds": 3, "description": "画面描述", "character": "xiaoming",
-"action": "动作描述", "dialogue": "对话", "narration": "旁白",
-"emotion": "情绪", "subtitle": "字幕"}}]}}],
-"characters_used": ["xiaoming", "xiaoli"], "next_episode_hook": "下集预告"}}"""
+纯JSON输出（无markdown）：
+{{"episode":{EPISODE_NUM},"title":"标题","duration_estimate":"3-5分钟",
+"scenes":[{{"scene_id":"scene_1","location":"office","time_of_day":"morning","lighting":"自然光","mood":"氛围",
+"shots":[{{"shot_id":"shot_1","shot_type":"medium_shot","camera_movement":"static",
+"duration_seconds":3,"description":"画面","character":"xiaoming","action":"动作",
+"dialogue":"对话","narration":"旁白","emotion":"情绪","subtitle":"字幕"}}]}}],
+"characters_used":["xiaoming","xiaoli"],"next_episode_hook":"下集预告"}}"""
 
 
 def _generate_with_gemini(prompt):
@@ -318,10 +302,10 @@ def _generate_with_local_llm(prompt):
     inputs = tokenizer(input_text, return_tensors="pt").to(model.device)
 
     log(f"  输入 token 数: {inputs.input_ids.shape[1]}")
-    log(f"  开始生成 (max_new_tokens=512, greedy)...")
+    log(f"  开始生成 (max_new_tokens=1024, greedy)...")
     with torch.no_grad():
         outputs = model.generate(
-            **inputs, max_new_tokens=512, do_sample=False,
+            **inputs, max_new_tokens=1024, do_sample=False,
             pad_token_id=tokenizer.eos_token_id,
         )
     log(f"  生成完成, 输出 token 数: {outputs[0].shape[0]}")
