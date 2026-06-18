@@ -110,6 +110,27 @@ def _install_comfyui():
 
     # GGUF 插件
     _install_gguf_plugin()
+    # Video Helper 插件（提供 VHS_VideoCombine 等节点）
+    _install_video_helper_plugin()
+
+
+def _install_video_helper_plugin():
+    """安装 comfyui-video-helper 插件（提供 VHS_VideoCombine 节点）"""
+    cn_dir = f"{COMFYUI_DIR}/custom_nodes"
+    vh_path = f"{cn_dir}/ComfyUI-VideoHelperSuite"
+    if os.path.isdir(vh_path):
+        return
+    os.makedirs(cn_dir, exist_ok=True)
+    log("  安装 Video Helper 插件...")
+    run_cmd(
+        f"git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git {vh_path}",
+        timeout=60,
+    )
+    # 安装依赖
+    req = f"{vh_path}/requirements.txt"
+    if os.path.isfile(req):
+        run_cmd(f"pip install -r {req} 2>&1 | tail -3", timeout=120)
+    log("  Video Helper 插件安装完成")
 
 
 def _install_gguf_plugin():
